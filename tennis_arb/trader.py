@@ -22,6 +22,7 @@ from typing import Optional
 from dateutil import parser as dtparser
 
 from .config import AppConfig
+from .fees import FeeModel
 from .kalshi_client import KalshiClient
 from .model.predict import Predictor
 from .monitor import NewMarket
@@ -59,7 +60,8 @@ class Trader:
         self.predictor = predictor
         self.risk = risk
         self.odds = odds
-        self.strategy = Strategy(cfg.strategy)
+        self.fees = FeeModel(maker_rate=cfg.fees.maker_rate, taker_rate=cfg.fees.taker_rate)
+        self.strategy = Strategy(cfg.strategy, self.fees)
 
     @property
     def live(self) -> bool:
@@ -221,21 +223,25 @@ class Trader:
                 return
             await asyncio.sleep(5)
 
-            # Re-pull fair (sportsbook may have moved) so exit asks track it.
+            # Re-pull fair (sportsbook may have moved) and orderbook touch.
             fair = await self._fair_price_cents(nm)
             if fair is None:
+                continue
+            try:
+                ob = parse_orderbook(await self.client.get_orderbook(nm.ticker))
+            except Exception:
                 continue
 
             # Place exit asks for any positions we now hold above fair.
             exp = self.risk._exposure.get(nm.ticker)
             if exp:
                 if exp.yes_contracts > 0:
-                    ask = self.strategy.exit_ask("yes", fair)
+                    ask = self.strategy.exit_ask("yes", fair, ob)
                     if ask:
                         ask.count = exp.yes_contracts
                         await self._place(nm.ticker, ask)
                 if exp.no_contracts > 0:
-                    ask = self.strategy.exit_ask("no", fair)
+                    ask = self.strategy.exit_ask("no", fair, ob)
                     if ask:
                         ask.count = exp.no_contracts
                         await self._place(nm.ticker, ask)

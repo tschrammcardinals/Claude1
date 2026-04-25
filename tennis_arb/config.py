@@ -10,12 +10,17 @@ from pydantic import BaseModel, Field
 
 
 class StrategyConfig(BaseModel):
-    edge_cents: int = 4
+    bid_offset_cents: int = 4
     ask_offset_cents: int = 3
-    initial_bid_offset_cents: int = 2
+    target_net_per_contract_cents: float = 3.0
     cutoff_minutes_before_start: int = 5
     min_fair_price_cents: int = 15
     max_fair_price_cents: int = 85
+
+
+class FeeConfig(BaseModel):
+    maker_rate: float = 0.0175
+    taker_rate: float = 0.0700
 
 
 class RiskConfig(BaseModel):
@@ -51,6 +56,7 @@ class AppConfig(BaseModel):
     risk: RiskConfig
     monitor: MonitorConfig
     model: ModelConfig
+    fees: FeeConfig
     kalshi: KalshiCreds
     odds_api_key: str | None = None
     artifacts_dir: Path = Path("./artifacts")
@@ -78,6 +84,7 @@ def load_config(yaml_path: str | Path = "config.yaml") -> AppConfig:
         risk=RiskConfig(**raw.get("risk", {})),
         monitor=MonitorConfig(**raw.get("monitor", {})),
         model=ModelConfig(**raw.get("model", {})),
+        fees=FeeConfig(**raw.get("fees", {})),
         kalshi=kalshi,
         odds_api_key=os.environ.get("ODDS_API_KEY") or None,
         artifacts_dir=Path(os.environ.get("ARTIFACTS_DIR", "./artifacts")),
