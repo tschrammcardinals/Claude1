@@ -47,7 +47,11 @@ async def run(live_flag: bool, config_path: str) -> None:
     store = Store(Path(cfg.artifacts_dir) / "state.sqlite")
     predictor = Predictor.from_artifacts(cfg.artifacts_dir)
     risk = RiskManager(cfg.risk, store)
-    odds = OddsAPI(cfg.odds_api_key) if cfg.odds_api_key else None
+    odds = (
+        OddsAPI(cfg.odds_api_key, cache_seconds=cfg.odds_api_cache_seconds)
+        if cfg.odds_api_key
+        else None
+    )
 
     monitor = MarketMonitor(client, store, cfg.monitor)
     trader = Trader(cfg, client, store, predictor, risk, odds=odds)

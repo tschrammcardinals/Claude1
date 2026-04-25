@@ -1,14 +1,21 @@
 """Optional sportsbook anchor via the-odds-api.com.
 
-Strongly recommended: the sportsbook line IS what the Kalshi market converges
-to in this strategy, so reading it directly is more reliable than predicting
-it. If no API key is configured, this returns None and the trader falls back
-to the Elo model alone.
+The sportsbook line IS what the Kalshi market converges to in this strategy,
+so reading it directly is more reliable than predicting it. If no API key
+is configured, this returns None and the trader falls back to the Elo model
+alone.
+
+A single `/sports/{sport}/odds` call returns odds for *every* current event
+in that sport — so we cache the response and serve all match-ups out of the
+cache for `cache_seconds`. That keeps the free tier (500 req/mo) viable: at
+the default 300s TTL during active tennis hours you'd use ~12 req/hour, well
+under the cap.
 """
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+import time
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 
@@ -18,15 +25,27 @@ BASE = "https://api.the-odds-api.com/v4"
 
 
 class OddsAPI:
-    def __init__(self, api_key: str, *, region: str = "us", timeout: float = 10.0):
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        region: str = "us",
+        timeout: float = 10.0,
+        cache_seconds: int = 300,
+    ):
         self.api_key = api_key
         self.region = region
+        self.cache_seconds = cache_seconds
         self._client = httpx.AsyncClient(timeout=timeout)
+        self._cache: Dict[str, Tuple[float, List[Dict]]] = {}
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def list_tennis_events(self, sport_key: str = "tennis_atp") -> List[Dict]:
+        cached = self._cache.get(sport_key)
+        if cached and (time.time() - cached[0]) < self.cache_seconds:
+            return cached[1]
         r = await self._client.get(
             f"{BASE}/sports/{sport_key}/odds",
             params={
@@ -37,7 +56,14 @@ class OddsAPI:
             },
         )
         r.raise_for_status()
-        return r.json()
+        events = r.json()
+        self._cache[sport_key] = (time.time(), events)
+        # Surface the rate-limit headers for visibility.
+        remaining = r.headers.get("x-requests-remaining")
+        used = r.headers.get("x-requests-used")
+        if remaining is not None:
+            log.info("the-odds-api: %s remaining / %s used", remaining, used)
+        return events
 
     @staticmethod
     def implied_prob(decimal_odds: float) -> float:

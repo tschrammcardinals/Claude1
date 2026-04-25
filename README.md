@@ -22,34 +22,48 @@ Automation for the Kalshi tennis arbitrage strategy:
 
 ### 1. Kalshi credentials
 
-Kalshi's authenticated API uses **RSA-PSS signatures**, not bearer tokens.
-You need two things:
+Kalshi's authenticated API uses **RSA-PSS signatures**. Think of this as a
+bank-card-and-PIN combo:
 
-- An **API key id** (a UUID-style string, e.g. `12abc345-...`).
-- An **RSA private key file** in PEM format (a text file beginning with
-  `-----BEGIN PRIVATE KEY-----`).
+- The **API Key ID** is like the card number — it identifies you to Kalshi.
+- The **private key file** (a `.pem` file Kalshi gives you) is like the PIN
+  — it proves it's actually you. Anyone with this file can trade your
+  account, so guard it like cash.
 
-How to get them:
+Step by step:
 
-1. Log in to your Kalshi account at https://kalshi.com.
-2. Open **Profile → API Keys** (or visit `/account/api`).
-3. Click **Generate new API key**. Kalshi shows you the **API key id** and
-   prompts you to download a `.pem` file containing the private key.
-   **Save it once — Kalshi never shows the private key again.**
-4. Move the `.pem` somewhere safe outside this repo (the repo `.gitignore`
-   excludes `*.pem` but don't take chances). E.g.:
-   ```bash
-   mkdir -p ~/.config/kalshi
-   mv ~/Downloads/kalshi-private-key.pem ~/.config/kalshi/private.pem
-   chmod 600 ~/.config/kalshi/private.pem
+1. Log in at https://kalshi.com.
+2. Click your profile photo (top-right) → **Settings** → **API Keys**, or
+   go directly to https://kalshi.com/account/api.
+3. Click **Create new API key**. A dialog pops up with two things:
+   - An **API Key ID** — a long string with letters, numbers and dashes,
+     e.g. `12abc345-d6e7-89f0-ab12-cd34ef567890`.
+   - A **Download** button for the private key file. The file is named
+     something like `kalshi-private-key.pem`.
+4. **Copy the API Key ID** somewhere temporary (Notes, TextEdit, Notepad).
+5. **Click Download** to save the `.pem` file. **Kalshi only shows you this
+   file once.** If you lose it, you have to delete the key and create a new
+   one.
+6. **Move the `.pem` out of Downloads** to a safer folder:
+   - **Mac / Linux** — open Terminal and run:
+     ```bash
+     mkdir -p ~/.config/kalshi
+     mv ~/Downloads/kalshi-private-key.pem ~/.config/kalshi/private.pem
+     chmod 600 ~/.config/kalshi/private.pem
+     ```
+   - **Windows** — open File Explorer, paste `%USERPROFILE%\.config\kalshi`
+     into the address bar and press Enter (it'll offer to create the folder
+     — say yes), then drag the downloaded `.pem` file into it.
+7. **Copy `.env.example` to `.env`** in the project folder, open it in any
+   text editor, and fill in the two values:
    ```
-5. Copy `.env.example` to `.env` and fill in:
-   ```bash
-   KALSHI_API_KEY_ID=12abc345-...your-key-id...
-   KALSHI_PRIVATE_KEY_PATH=/home/you/.config/kalshi/private.pem
+   KALSHI_API_KEY_ID=12abc345-d6e7-89f0-ab12-cd34ef567890
+   KALSHI_PRIVATE_KEY_PATH=/Users/yourname/.config/kalshi/private.pem
    ```
+   Use the **full path** — Mac/Linux starts with `/Users/` or `/home/`,
+   Windows starts with `C:\Users\`. No quotes around the values.
 
-The PEM file's contents look like:
+The PEM file's contents look like this (don't edit it):
 
 ```
 -----BEGIN PRIVATE KEY-----
@@ -59,8 +73,15 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 -----END PRIVATE KEY-----
 ```
 
-If yours starts with `-----BEGIN RSA PRIVATE KEY-----` (PKCS#1) the loader
-also accepts that format.
+If yours starts with `-----BEGIN RSA PRIVATE KEY-----` instead, the loader
+handles that too.
+
+**Common gotchas:**
+- The path must be the full path, not a relative one.
+- Don't put quotes around values in `.env`.
+- The repo's `.gitignore` excludes `*.pem` and `.env` so they can't be
+  accidentally committed — but still don't paste either into chats or
+  upload them anywhere.
 
 ### 2. Install + train
 
@@ -78,21 +99,30 @@ python -m scripts.train_model --tour wta --years 2018-2024
 The strategy works much better when the model isn't the only price reference.
 [the-odds-api.com](https://the-odds-api.com) aggregates real-time h2h odds
 from every major US book (DraftKings, FanDuel, BetMGM, Pinnacle, …) into
-clean JSON. Free tier: 500 requests/month (fine for testing). Paid: $30/mo
-for 20k requests, $59/mo for 100k.
+clean JSON.
 
-Once you have a key, add it to `.env`:
+**Free tier: 500 requests/month** — enough to validate the plumbing if we
+cache aggressively. A single API call returns odds for *every* current
+tennis event, so the trader caches that response for `ODDS_API_CACHE_SECONDS`
+(default 300) and serves all match lookups locally. At the default TTL during
+active tennis hours you'll use roughly **12 requests/hour**, well under the
+free cap. If you upgrade later (paid plans start at $30/mo for 20k requests),
+drop the TTL to 60 to react faster to line moves.
 
-```bash
-ODDS_API_KEY=your-odds-api-key
-```
+Once you have a key:
 
-When set, `Trader._fair_price_cents` first asks the-odds-api for the de-vigged
-average across books for that match-up. If found, that's the fair price the
-optimizer uses. If not (match not in the books yet), it falls back to the Elo
-model. This is exactly the strategy you described — bidding below where the
-sportsbook line will open — except now we read the sportsbook line directly
-instead of guessing it.
+1. Sign up at https://the-odds-api.com and get your key from the dashboard.
+2. Add it to `.env`:
+   ```
+   ODDS_API_KEY=your-odds-api-key
+   ODDS_API_CACHE_SECONDS=300
+   ```
+
+When set, the trader asks the-odds-api first for the de-vigged average across
+books for the match. If the books haven't posted yet (which is common on the
+window where this arb works), it falls back to the Elo model. This is exactly
+the strategy you described — bidding below where the sportsbook line will
+open — with the line read directly instead of predicted.
 
 ### 4. Run
 

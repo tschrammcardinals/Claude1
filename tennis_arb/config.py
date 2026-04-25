@@ -59,6 +59,7 @@ class AppConfig(BaseModel):
     fees: FeeConfig
     kalshi: KalshiCreds
     odds_api_key: str | None = None
+    odds_api_cache_seconds: int = 300
     artifacts_dir: Path = Path("./artifacts")
 
 
@@ -87,5 +88,6 @@ def load_config(yaml_path: str | Path = "config.yaml") -> AppConfig:
         fees=FeeConfig(**raw.get("fees", {})),
         kalshi=kalshi,
         odds_api_key=os.environ.get("ODDS_API_KEY") or None,
+        odds_api_cache_seconds=int(os.environ.get("ODDS_API_CACHE_SECONDS", "300")),
         artifacts_dir=Path(os.environ.get("ARTIFACTS_DIR", "./artifacts")),
     )
