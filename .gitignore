@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.pem
+data/
+artifacts/
+*.sqlite
+*.sqlite-journal
+paper_orders.jsonl
+.killswitch
+.pytest_cache/

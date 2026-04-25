@@ -1,0 +1,59 @@
+# Tennis arb strategy config. Tune to taste.
+
+strategy:
+  # Minimum edge (in cents) below model fair price required to bid.
+  # i.e. only bid if model says fair=58c and our bid is <= 54c.
+  edge_cents: 4
+
+  # Spread (in cents) above fair we list our resting ask once filled.
+  ask_offset_cents: 3
+
+  # How many cents off the orderbook touch to bid initially (stay below mid).
+  initial_bid_offset_cents: 2
+
+  # Stop placing new orders this many minutes before scheduled match start.
+  cutoff_minutes_before_start: 5
+
+  # Don't trade markets whose model fair price is outside this band — too
+  # lopsided to be safely arbitrage-able.
+  min_fair_price_cents: 15
+  max_fair_price_cents: 85
+
+risk:
+  # Max $ at risk on a single market (sum of yes + no exposures).
+  max_exposure_per_market: 50.0
+
+  # Max number of contracts per side per market.
+  max_contracts_per_side: 100
+
+  # Daily realised + unrealised loss cap. Trips the kill switch.
+  max_daily_loss: 500.0
+
+  # Don't place an order if it would put global exposure above this.
+  max_global_exposure: 2000.0
+
+monitor:
+  # How often (seconds) to poll Kalshi REST for new tennis markets.
+  poll_interval_seconds: 2.0
+
+  # Kalshi series tickers to watch. CONFIRM these against the live Kalshi API
+  # before going live — series tickers change. Leave empty to scan all events
+  # whose category contains "tennis".
+  series_tickers: []
+
+  # Match-title substrings to match (case-insensitive) when scanning by category.
+  title_keywords: ["tennis", "atp", "wta"]
+
+model:
+  # Surface-specific Elo blend weight. Combined = alpha*surface + (1-alpha)*overall.
+  surface_alpha: 0.65
+
+  # K-factor for Elo updates.
+  k_factor: 32.0
+
+  # Default rating for unknown players.
+  default_rating: 1500.0
+
+  # Recency decay: discount matches older than this many days when training
+  # final ratings (still used to update, just downweighted).
+  recency_half_life_days: 730
