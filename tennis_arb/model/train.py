@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Iterable
 
-from .data import load_matches
+from .data import load_all_matches
 from .elo import EloModel
 
 log = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def train_tour(
     default_rating: float = 1500.0,
 ) -> Path:
     data_dir = artifacts_dir / "data"
-    matches = load_matches(tour, years, data_dir)
+    matches = load_all_matches(tour, years, data_dir)
     log.info("loaded %d %s matches", len(matches), tour)
 
     model = EloModel(
